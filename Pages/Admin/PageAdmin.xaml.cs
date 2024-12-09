@@ -82,61 +82,32 @@ namespace MaterialWPF.Pages.Admin
             // Добавляем страницу для пользователей
             PdfPage pageUsers = document.AddPage();
             XGraphics gfxUsers = XGraphics.FromPdfPage(pageUsers);
-            XFont font = new XFont("Verdana", 8, PdfSharp.Drawing.XFontStyleEx.Regular);
-            gfxUsers.DrawString("Список пользователей (кроме администратора)", font, XBrushes.Black, new XRect(50, 50, pageUsers.Width, pageUsers.Height), XStringFormats.TopLeft);
-            int yUsers = 80;
-            foreach (var user in users)
-            {
-                gfxUsers.DrawString($"ID: {user.ID_Пользователя}, Логин: {user.Логин}, Роль: {user.Роль}", font, XBrushes.Black, new XRect(50, yUsers, pageUsers.Width, pageUsers.Height), XStringFormats.TopLeft);
-                yUsers += 20;
-            }
+            XFont font = new XFont("Times New Roman", 8, PdfSharp.Drawing.XFontStyleEx.Regular);
+            DrawTable(gfxUsers, font, "Список пользователей (кроме администратора)", users, new[] { "ID", "Логин", "Роль" }, (Пользователи user) => new[] { user.ID_Пользователя.ToString(), user.Логин, user.Роль });
 
             // Добавляем страницу для заказов
             PdfPage pageOrders = document.AddPage();
             XGraphics gfxOrders = XGraphics.FromPdfPage(pageOrders);
-            gfxOrders.DrawString("Список заказов", font, XBrushes.Black, new XRect(50, 50, pageOrders.Width, pageOrders.Height), XStringFormats.TopLeft);
-            int yOrders = 80;
-            foreach (var order in orders)
+            DrawTable(gfxOrders, font, "Список заказов", orders, new[] { "ID", "Заказчик", "Адрес", "Заказ", "Количество", "Дата заказа" }, (Заказы order) =>
             {
-                foreach (var customer in order.Заказчики)
-                {
-                    gfxOrders.DrawString($"ID: {order.ID_Заказа}, Заказчик: {customer.Имя}, Адрес: {customer.Адрес}, Заказ: {order.Заготовки.Название}, Количество: {order.Количество}, Дата заказа: {order.Дата_Заказа}", font, XBrushes.Black, new XRect(50, yOrders, pageOrders.Width, pageOrders.Height), XStringFormats.TopLeft);
-                    yOrders += 20;
-                }
-            }
+                var customer = order.Заказчики.FirstOrDefault();
+                return new[] { order.ID_Заказа.ToString(), customer?.Имя, customer?.Адрес, order.Заготовки.Название, order.Количество.ToString(), order.Дата_Заказа.ToString() };
+            });
 
             // Добавляем страницу для материалов
             PdfPage pageMaterials = document.AddPage();
             XGraphics gfxMaterials = XGraphics.FromPdfPage(pageMaterials);
-            gfxMaterials.DrawString("Список материалов", font, XBrushes.Black, new XRect(50, 50, pageMaterials.Width, pageMaterials.Height), XStringFormats.TopLeft);
-            int yMaterials = 80;
-            foreach (var material in materials)
-            {
-                gfxMaterials.DrawString($"ID: {material.ID_Материала}, Название: {material.Название}, Количество: {material.Количество}", font, XBrushes.Black, new XRect(50, yMaterials, pageMaterials.Width, pageMaterials.Height), XStringFormats.TopLeft);
-                yMaterials += 20;
-            }
+            DrawTable(gfxMaterials, font, "Список материалов", materials, new[] { "ID", "Название", "Количество" }, (Материалы material) => new[] { material.ID_Материала.ToString(), material.Название, material.Количество.ToString() });
 
             // Добавляем страницу для продуктов
             PdfPage pageProducts = document.AddPage();
             XGraphics gfxProducts = XGraphics.FromPdfPage(pageProducts);
-            gfxProducts.DrawString("Список продуктов", font, XBrushes.Black, new XRect(50, 50, pageProducts.Width, pageProducts.Height), XStringFormats.TopLeft);
-            int yProducts = 80;
-            foreach (var product in products)
-            {
-                gfxProducts.DrawString($"ID: {product.ID_Заготовки}, Название: {product.Название}", font, XBrushes.Black, new XRect(50, yProducts, pageProducts.Width, pageProducts.Height), XStringFormats.TopLeft);
-                yProducts += 20;
-            }
+            DrawTable(gfxProducts, font, "Список продуктов", products, new[] { "ID", "Название" }, (Заготовки product) => new[] { product.ID_Заготовки.ToString(), product.Название });
 
             // Добавляем страницу для бракованных продуктов
             PdfPage pageDefects = document.AddPage();
             XGraphics gfxDefects = XGraphics.FromPdfPage(pageDefects);
-            gfxDefects.DrawString("Список бракованных продуктов", font, XBrushes.Black, new XRect(50, 50, pageDefects.Width, pageDefects.Height), XStringFormats.TopLeft);
-            int yDefects = 80;
-            foreach (var defect in defects)
-            {
-                gfxDefects.DrawString($"ID: {defect.ID_Брака}, Производство ID: {defect.ID_Производства}, Описание: {defect.Описание}", font, XBrushes.Black, new XRect(50, yDefects, pageDefects.Width, pageDefects.Height), XStringFormats.TopLeft);
-                yDefects += 20;
-            }
+            DrawTable(gfxDefects, font, "Список бракованных продуктов", defects, new[] { "ID", "Производство ID", "Описание" }, (Брак defect) => new[] { defect.ID_Брака.ToString(), defect.ID_Производства.ToString(), defect.Описание });
 
             // Открываем диалоговое окно для выбора места сохранения файла
             SaveFileDialog saveFileDialog = new SaveFileDialog();
@@ -150,6 +121,80 @@ namespace MaterialWPF.Pages.Admin
                 document.Save(saveFileDialog.FileName);
                 MessageBox.Show("PDF успешно сохранен!", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
             }
+        }
+
+        private void DrawTable<T>(XGraphics gfx, XFont font, string title, IEnumerable<T> data, string[] headers, Func<T, string[]> rowMapper)
+        {
+            int x = 50; // Начальная позиция по оси X
+            int y = 50; // Начальная позиция по оси Y
+            int rowHeight = 20; // Высота строки
+            int padding = 5; // Отступ от границ ячеек
+
+            gfx.DrawString(title, font, XBrushes.Black, new XRect(x, y, gfx.PageSize.Width, rowHeight), XStringFormats.TopLeft);
+            y += rowHeight;
+
+            // Вычисляем ширину столбцов
+            int[] columnWidths = new int[headers.Length];
+            for (int i = 0; i < headers.Length; i++)
+            {
+                columnWidths[i] = (int)gfx.MeasureString(headers[i], font).Width + 2 * padding;
+            }
+
+            foreach (var item in data)
+            {
+                string[] rowData = rowMapper(item);
+                for (int i = 0; i < rowData.Length; i++)
+                {
+                    int textWidth = (int)gfx.MeasureString(rowData[i], font).Width + 2 * padding;
+                    if (textWidth > columnWidths[i])
+                    {
+                        columnWidths[i] = textWidth;
+                    }
+                }
+            }
+
+            int totalWidth = columnWidths.Sum();
+
+            // Отрисовка заголовков
+            DrawRow(gfx, font, headers, columnWidths, ref x, ref y, rowHeight, padding);
+
+            // Отрисовка данных
+            foreach (var item in data)
+            {
+                string[] rowData = rowMapper(item);
+                DrawRow(gfx, font, rowData, columnWidths, ref x, ref y, rowHeight, padding);
+            }
+
+            // Рисуем границы таблицы
+            gfx.DrawRectangle(XPens.Black, x, y - data.Count() * rowHeight - rowHeight, totalWidth, data.Count() * rowHeight + rowHeight);
+        }
+
+        private void DrawRow(XGraphics gfx, XFont font, string[] rowData, int[] columnWidths, ref int x, ref int y, int rowHeight, int padding)
+        {
+            int totalWidth = columnWidths.Sum();
+
+            // Рисуем верхнюю границу строки
+            gfx.DrawLine(XPens.Black, x, y, x + totalWidth, y);
+
+            for (int i = 0; i < rowData.Length; i++)
+            {
+                int textWidth = (int)gfx.MeasureString(rowData[i], font).Width;
+                int columnWidth = columnWidths[i];
+
+                // Рисуем текст в ячейке
+                gfx.DrawString(rowData[i], font, XBrushes.Black, new XRect(x + padding, y + padding, columnWidth - 2 * padding, rowHeight - 2 * padding), XStringFormats.TopLeft);
+
+                // Рисуем правую границу ячейки
+                gfx.DrawLine(XPens.Black, x + columnWidth, y, x + columnWidth, y + rowHeight);
+
+                x += columnWidth;
+            }
+
+            // Рисуем нижнюю границу строки
+            gfx.DrawLine(XPens.Black, x - totalWidth, y + rowHeight, x, y + rowHeight);
+
+            y += rowHeight;
+            x = 50;
         }
     }
 }
